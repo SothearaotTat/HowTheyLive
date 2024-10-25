@@ -1,0 +1,742 @@
+---
+title: "Assignment 3 - visualisation"
+author: "Sothearaot Tat"
+date: "2024-10-19"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(ggtext)
+library(patchwork)
+library(png)
+library(httr)
+library(grid)
+library(magrittr)
+library(readr)
+library(ggplot2)
+library(jpeg)
+library(ggforce)
+library(ggtext)
+library(extrafont)
+library(camcorder)
+library(ggstream)
+library(ggsci)
+library(ggdist)
+library(colorspace)
+library(shiny)
+library(shinythemes)
+library(shinyWidgets)
+library(ggsankey)
+library(wesanderson)
+```
+
+## Data Preprocessing
+
+```{r}
+
+#set wd
+setwd("D:/Study/RMIT/sem 2/visualisation/Assignment 3")
+
+#gg_record(dir = file.path("D:/Study/RMIT/sem 2/visualisation/Assignment 3", "recording"),
+#          device = "png", dpi = 300)
+
+#gg_resize_film(width = 12, height = 10, dpi = 300)
+```
+
+```{r general preprocessing}
+
+#reading data
+AUT <- read.csv("AUT data.csv") #main data
+variables <- read.csv("acitivities_var.csv")
+
+respondent_info <- grep("^T", colnames(AUT), value = TRUE)
+
+#selecting variables of interest
+AUT_cut <- AUT[,c(respondent_info, variables$code)] %>%
+  mutate(across(matches('^t[0-9]+'), ~ as.numeric(.)))
+
+
+#main variables
+sleep_code <- filter(variables,
+                     Activities == "Sleep")$code
+
+selfcare_code <- filter(variables,
+                     Activities == "self-care")$code
+
+Household_code <- filter(variables,
+                     Activities == "Household")$code
+
+work_code <- filter(variables,
+                     Activities == "work")$code
+
+traveling_code <- filter(variables,
+                     Activities == "traveling")$code
+
+recreation_code <- filter(variables,
+                     Activities == "recreation and socialising")$code
+ 
+
+
+all_var <- list(sleep_code, selfcare_code, Household_code, work_code, traveling_code, recreation_code)
+
+all_var_name <- c("sleep_sum", "selfcare_sum", "Household_sum", "work_sum", "traveling_sum", "recreation_sum")
+
+
+#adding up main variables
+
+for (i in seq_along(all_var)) {
+  new_name <- all_var_name[i] 
+    
+  assign(new_name, AUT_cut %>%
+  select(all_of(all_var[[i]])) %>%
+  reframe(Sum = rowSums(across(everything()), na.rm = TRUE))
+  )
+}
+
+#binding
+AUT_summarise <- cbind(AUT_cut[,respondent_info],
+                       Household_sum,
+                       selfcare_sum,
+                       sleep_sum,
+                       traveling_sum,
+                       work_sum,
+                       recreation_sum)
+
+#renaming columns
+colnames(AUT_summarise)[20:25]  <- c("Household_sum",
+                                     "selfcare_sum",
+                                     "sleep_sum",
+                                     "traveling_sum",
+                                     "work_sum",
+                                     "recreation_sum")
+
+
+
+```
+
+```{r mian plot data preprocessing: Time Spent by Age and Activities for 21-year period }
+#================main plot===================
+#calculate hrs
+AUT_dist_hr <- AUT_summarise %>% mutate(
+  TUFNWGTP = as.numeric(TUFNWGTP),
+  TEAGE = as.numeric(TEAGE),
+  Household_hr = Household_sum/60,
+  selfcare_hr = selfcare_sum/60,
+  sleep_hr = sleep_sum/60,
+  traveling_hr = traveling_sum/60,
+  work_hr = work_sum/60,
+  recreation_hr = recreation_sum/60)%>%
+  mutate(
+    TEAGE = case_when(
+      TEAGE > 9 & TEAGE <= 20 ~ 1,
+      TEAGE > 20 & TEAGE <= 40 ~ 2,
+      TEAGE > 40 & TEAGE <= 60 ~ 3,
+      TEAGE > 60 & TEAGE <= 100 ~ 4, 
+    )
+  )
+
+#changeing the names of the variables 
+AUT_dist_hr <- AUT_dist_hr[-1,] %>% #removing the description of the variables
+  select(TUYEAR, TEAGE,Household_hr, selfcare_hr, sleep_hr, traveling_hr, work_hr, recreation_hr) %>%
+  pivot_longer(cols = matches("_hr$"),
+               names_to = "activities",
+               values_to = "Time_spent") %>%
+  mutate(activities = case_when(
+    activities == "Household_hr" ~ "Household",
+    activities == "selfcare_hr" ~ "Self Care",
+    activities == "sleep_hr" ~ "Sleep",
+    activities == "traveling_hr" ~ "Traveling",
+    activities == "work_hr" ~ "Work",
+    activities == "recreation_hr" ~ "Recreation"
+  )) 
+
+#removing those who do not participate in the activities
+AUT_dist_hr <- AUT_dist_hr %>%
+  mutate(activities = as.factor(activities),
+         TEAGE = as.factor(TEAGE),
+         TUYEAR = as.factor(TUYEAR)) %>%
+  filter(Time_spent != 0) 
+
+save(file = "AUT_dist_hr.Rdata", AUT_dist_hr)
+```
+
+```{r subplot 1 data preprocessing: dissecting recreation and socialising}
+#Import variables 
+Recreation_code <- read.csv("recreation_code.csv")
+
+AUT_recreation_data <- AUT_cut[,c(respondent_info, Recreation_code$code)]
+
+
+#sub-variables
+code_Socialising <- filter(Recreation_code,
+                     type == "Socialising")$code
+
+code_Relaxing <- filter(Recreation_code,
+                     type == "Relaxing")$code
+
+code_GamblingandDrug <- filter(Recreation_code,
+                     type == "Gambling and Drug")$code
+
+code_Computer <- filter(Recreation_code,
+                     type == "Computer")$code
+
+code_Radio <- filter(Recreation_code,
+                     type == "Radio")$code
+
+code_TV <- filter(Recreation_code,
+                     type == "TV")$code
+
+code_ArtsLiterature <- filter(Recreation_code,
+                     type == "Arts")$code
+
+code_Sport <- filter(Recreation_code,
+                     type == "Sport")$code
+
+code_Waiting <- filter(Recreation_code,
+                     type == "Waiting")$code
+
+code_Watch <- filter(Recreation_code,
+                     type == "Watching Sport")$code
+
+
+recreation_var <- list(code_Socialising, code_Relaxing, code_GamblingandDrug, code_Computer, code_Radio, code_TV, code_ArtsLiterature, code_Sport, code_Waiting, code_Watch)
+
+recreation_sum_var <- c("Sum_socialising", "Sum_Relaxing", "Sum_Gambling", "Sum_Computer", "Sum_Radio", "Sum_TV", "Sum_Arts", "Sum_Sport", "Sum_Waiting", "Sum_Watch")
+
+
+#adding up sub-variables1
+
+for (i in seq_along(recreation_sum_var)) {
+  recreation_new_name <- recreation_sum_var[i] 
+    
+  assign(recreation_new_name, AUT_recreation_data %>%
+  select(all_of(recreation_var[[i]])) %>%
+  reframe(Sum = rowSums(across(everything()), na.rm = TRUE))
+  )
+}
+
+#binding
+recreation_summarise <-cbind(AUT_recreation_data[,respondent_info],
+                       Sum_socialising,
+                       Sum_Relaxing,
+                       Sum_Gambling,
+                       Sum_Computer,
+                       Sum_Radio,
+                       Sum_TV,
+                       Sum_Arts,
+                       Sum_Sport,
+                       Sum_Waiting,
+                       Sum_Watch)
+
+#renaming columns
+colnames(recreation_summarise)[20:29]  <- c("Sum_socialising",
+                                     "Sum_Relaxing",
+                                     "Sum_Gambling",
+                                     "Sum_Computer",
+                                     "Sum_Radio",
+                                     "Sum_TV",
+                                     "Sum_Arts",
+                                     "Sum_Sport",
+                                     "Sum_Waiting",
+                                     "Sum_Watch")
+
+#summarising recreation data
+recreation_summarise_not2020 <- recreation_summarise %>% mutate(
+  TUFNWGTP = as.numeric(TUFNWGTP),
+  Weight_Socialising = TUFNWGTP * Sum_socialising,
+  Weight_Relaxing = TUFNWGTP * Sum_Relaxing,
+  Weight_Gambling = TUFNWGTP * Sum_Gambling,
+  Weight_Computer = TUFNWGTP * Sum_Computer,
+  Weight_Radio = TUFNWGTP * Sum_Radio,
+  Weight_TV = TUFNWGTP * Sum_TV,
+  Weight_Arts = TUFNWGTP * Sum_Arts,
+  Weight_Sport = TUFNWGTP * Sum_Sport,
+  Weight_Waiting = TUFNWGTP * Sum_Waiting,
+  Weight_Watch = TUFNWGTP * Sum_Watch,
+  ) %>%
+  filter(TUYEAR != "2020")
+
+recreation_summarise_2020 <- recreation_summarise %>% mutate(
+  TU20FWGT = as.numeric(TU20FWGT),
+  Weight_Socialising = TU20FWGT * Sum_socialising,
+  Weight_Relaxing = TU20FWGT * Sum_Relaxing,
+  Weight_Gambling = TU20FWGT * Sum_Gambling,
+  Weight_Computer = TU20FWGT * Sum_Computer,
+  Weight_Radio = TU20FWGT * Sum_Radio,
+  Weight_TV = TU20FWGT * Sum_TV,
+  Weight_Arts = TU20FWGT * Sum_Arts,
+  Weight_Sport = TU20FWGT * Sum_Sport,
+  Weight_Waiting = TU20FWGT * Sum_Waiting,
+  Weight_Watch = TU20FWGT * Sum_Watch
+  ) %>%
+  filter(TUYEAR == "2020")
+
+#calculating the average for each activities by year
+
+Weight <- c("Weight_Socialising", "Weight_Relaxing", "Weight_Gambling","Weight_Computer", "Weight_Radio", "Weight_TV", "Weight_Arts", "Weight_Sport", "Weight_Waiting","Weight_Watch")
+
+Rec_average_not2020 <- list()
+Rec_average_2020 <- list()
+
+for (i in seq_along(Weight)) {
+  
+average_weight <- paste0("average_",Weight[i])
+
+Rec_average_not2020[[i]] <- recreation_summarise_not2020 %>%
+  group_by(TUYEAR) %>%
+  summarise(!!average_weight := sum(get(Weight[i]) / sum(TUFNWGTP) ),
+            .groups = 'drop')
+  
+Rec_average_2020[[i]] <- recreation_summarise_2020 %>%
+  group_by(TUYEAR) %>%
+  summarise(!!average_weight := sum(get(Weight[i]) / sum(TU20FWGT) ),
+            .groups = 'drop')
+}
+
+#binding the data 
+for (i in seq_along(Weight)) {
+  Rec_average_2020[[i]] <- Rec_average_2020[[i]] %>%
+    pivot_longer(cols = matches("^average_"),names_prefix = "average_", values_to = "Avg_min")
+  
+  Rec_average_not2020[[i]] <- Rec_average_not2020[[i]] %>%
+    pivot_longer(cols = matches("^average_"),names_prefix = "average_", values_to = "Avg_min")
+}
+
+Avg_rec_byYear <- rbind(
+  do.call(rbind, Rec_average_2020),
+  do.call(rbind, Rec_average_not2020)
+)
+
+Avg_rec_byYear %<>% filter(!is.na(Avg_min)) #filter out the description of the columns
+
+colnames(Avg_rec_byYear) <- c("Year", "Activities", "Average Minutes")
+
+Avg_rec_byYear %<>% mutate(
+  Activities = case_when(
+    Activities == "Weight_Socialising" ~ "Socialising",
+    Activities == "Weight_Relaxing" ~ "Relaxing & Thinking",
+    Activities == "Weight_Gambling" ~ "Gambling & Drug",
+    Activities == "Weight_Computer" ~ "Computer & Games",
+    Activities == "Weight_Radio" ~ "Music & Radio",
+    Activities == "Weight_TV" ~ "TV & Movies",
+    Activities == "Weight_Arts" ~ "Arts & Literature",
+    Activities == "Weight_Sport" ~ "Sports",
+    Activities == "Weight_Waiting" ~ "Waiting",
+    Activities == "Weight_Watch" ~ "Watching Sth"
+  ),
+  Year = as.numeric(Year),
+  Activities = as.factor(Activities)
+)
+
+save(file = "Avg_rec_byYear.Rdata", Avg_rec_byYear)
+```
+
+```{r subplot}
+#color assignment
+rec_activities <- unique(Avg_rec_byYear$Activities)
+
+rec_AllColor <- c(pal_jama()(7),"#D8B70A", "#F8AFA8", "grey30")
+
+rec_color <-  setNames(rec_AllColor, rec_activities)
+
+#for big 6 legend
+legend_position_Y <- c(-30,-90, -110, 80,-65,-127)
+
+legend_text <- c("Socialising", "Relaxing\n& Thinking", "Computer\n& Games", "TV\n& Movies", "Arts\n& Literature", "Sports")
+
+legend_color_44 <- rec_color[c("Socialising","Relaxing & Thinking", "Computer & Games", "TV & Movies", "Arts & Literature", "Sports")]
+
+#================ggplot======================
+subplot <- Avg_rec_byYear %>% ggplot(aes(x = Year, value = `Average Minutes`, 
+                              node = Activities, fill = Activities)) +
+  geom_sankey_bump(space = 0.5, smooth = 8, color="transparent", alpha = 0.95)+  
+  
+  #coordinates
+  scale_x_continuous(limits = c(2001,2023.1),
+                     breaks = c(seq(2003,2023,by=1)),
+                     expand = c(0,0))+
+  scale_y_continuous(expand = c(0,0),
+                     limits = c(-180,180),
+                     breaks = c(seq(-180,160,by = 25),170),
+                     sec.axis = sec_axis(~., name = "right",
+                                         breaks = c(seq(-180,160,by = 25),170),
+                                         labels = c(seq(0,340,by = 25), "**Minutes**")))+
+  
+  #background
+  theme_void()+
+  theme(legend.position = "none",
+        plot.background = element_rect(fill = "seashell", 
+                                       color = NA),
+        panel.background = element_rect(fill = "seashell",
+                                        color = NA),
+        axis.text.x = element_markdown(margin = margin(t=15,b=10,l=10,r=10),
+                                       size = 9,
+                                       family = "Lato"),
+        axis.text.y.right = element_markdown(size = 9,
+                                       family = "Lato",
+                                       margin = margin(r = 10)),
+        panel.grid.major.x = element_line(
+                color = "grey50", linetype = "dashed", size = .2),
+  #Title,Subtitle,  
+    plot.title = element_text(family = "Georgia", color = "tan4", 
+                            size = 18, face = "bold",
+                            margin = margin(t = 10, l = 70)),
+    plot.subtitle = element_markdown(color = "tan4", size = 14,
+                                     family = "Lato",
+                                   margin = margin(t = 10, b = 20, l = 70),
+                                   lineheight = 1.25),
+        plot.caption = element_markdown(color = "tan4", size = 8,
+                                         family = "Lato",
+                                        margin = margin(b = 10, t=0)))+ 
+  labs(
+    title = "Leisure Over the years:",
+    subtitle = "The following plot details the changes in time spent in minutes on recreational activities from 2003 to 2023. <br>
+     <span style='font-size: 12px; font-family: Lato;'><em>The bumps from one variable over another represents takeover/exceeding. Note: <strong>Watching sth</strong> is watching live</em></span>",
+    caption = "*Visualization by Sothearaot Tat  |  Source: ATU Survey*"
+      ) +
+  #color
+  scale_fill_manual(values = rec_color)+
+  #legend-manual-for-the-big-6
+    annotate("text",
+             x = rep(2002,6),
+             y = legend_position_Y,
+             label = legend_text,
+             size = 3, 
+          color = legend_color_44,
+          family = "Lato",
+          fontface = "bold")+
+      #Watching sth...
+      annotate("text",
+                 x = rep(2002),
+                 y = -147,
+                 label = "Watching sth..",
+                 size = 3, 
+              color = rec_color["Watching Sth"],
+              family = "Lato",
+              fontface = "bold")+
+      #DRUGG
+      annotate("text",
+                 x = 2002,
+                 y = -160,
+                 label = "Drug\n& Gambling",
+                 size = 3, 
+              color = rec_color["Gambling & Drug"],
+              family = "Lato",
+              fontface = "bold")+
+        #arrow
+              annotate(
+                    "curve", x = 2002.5,
+                    xend = 2002.9,
+                    y = -160,
+                    yend = -149.5, 
+                    curvature = .25,
+                    color = rec_color["Gambling & Drug"],
+                    size = .55,
+                    arrow = arrow(length = unit(0.06, "inches"),
+                                  type = "closed")
+                  )+
+       #Music
+          annotate("text",
+                     x = 2002,
+                     y = -138,
+                     label = "Music\n& Radio",
+                     size = 3, 
+                  color = rec_color["Music & Radio"],
+                  family = "Lato",
+                  fontface = "bold")+
+            #arrow
+                  annotate(
+                        "curve", x = 2002.5,
+                        xend = 2002.9,
+                        y = -138,
+                        yend = -142, 
+                        curvature = -.25,
+                        color = rec_color["Music & Radio"],
+                        size = .55,
+                        arrow = arrow(length = unit(0.06, "inches"),
+                                      type = "closed")
+                      )+
+  #More Annotations
+        #a quip about drugs and covid
+  geom_mark_rect(aes(x = 2020, y = -165, label = "2020:",
+                     description = "Covid makes people do\nmore drugs than watch sports!"),
+                 inherit.aes = FALSE,
+                  color = "grey30",
+                 label.family = "Lato",
+                 label.fontsize = 8, label.fontface = "bold",
+                 x0 = 2019, y0 = -172,
+                 label.fill = "transparent",
+                 label.colour = "#B24745FF")+
+        #a quip about thinking
+  annotate("text",
+           x = 2021.5, y = -118,
+           label = "What are\nthey thinking\nabout!?",
+           family = "Lato", fontface = "bold",
+           color = "white",
+           size = 3.2,
+           angle = 1)+
+       #a quip about waiting time spent before activities
+      annotate("text",
+               x = 2005.5, y = -165,
+               label = "Average Waiting Time:\nSo low! No wonder they're impatient.",
+               family = "Lato", fontface = "bold",
+               color = "grey30",
+               size = 3.2,
+               hjust = 0)+
+            #arrow
+                  annotate(
+                        "curve", x = 2008.1,
+                        xend = 2008.5,
+                        y = -165,
+                        yend = -155, 
+                        curvature = .25,
+                        color = "grey30",
+                        size = .55,
+                        arrow = arrow(length = unit(0.06, "inches"),
+                                      type = "closed")
+                      )
+              
+#save to call in app
+ggsave(plot = subplot, filename = "D:/Study/RMIT/sem 2/visualisation/Assignment 3/subplot.png", width = 17, height = 11, dpi = 800)
+```
+
+
+```{r shiny, with interactive main plot}
+#UI
+
+years <- unique(AUT_summarise$TUYEAR)[-1]
+
+
+ui <- fluidPage(shinytheme("paper"),
+                setBackgroundColor("seashell"),
+   navbarPage( "How They Live",
+     #panel 1
+     tabPanel("Time Spent by Activities and Age Groups",id = "panel1",
+      fluidRow(
+        column(2,
+          wellPanel(
+            selectInput("selected_year", "Select Year:", 
+                      choices = years, selected = years[length(years)]))),
+        column(10,
+          mainPanel(
+            plotOutput("activity_plot", height = "800px")))
+          ),
+      tags$style(HTML(".shiny-plot-output {
+          height: 800px;  
+          width: 100%;    
+        }
+        .container {
+          max-width: 100%; 
+        }
+        .row{
+          width: 100%;
+        }
+      "))
+      ),
+     #panel 2
+    tabPanel("hello")
+   )
+)
+# Define server logic
+server <- function(input, output) {
+  
+  output$activity_plot <- renderPlot({
+    filtered_data <- AUT_dist_hr %>%
+      filter(TUYEAR == input$selected_year)
+    
+  ggplot(
+    data = filtered_data,
+    aes(x = Time_spent, y = TEAGE))+
+  stat_dots(position = "dodge",
+            aes(fill = activities,
+                color = activities),
+            dotsize = 1)+
+  stat_pointinterval(position = "dodgejust",
+            aes(fill = activities, color = activities),
+                     size = 2,
+                     linewidth = 1,
+                     point_interval = mean_qi,
+                     shape = 21,
+                     point_color = "grey20",
+            show.legend = FALSE)+
+  stat_pointinterval(position = "dodgejust",
+            aes(fill = activities, color = activities),
+                     size = 2,
+                     linewidth = 1,
+                     point_color = "grey20",
+                     point_interval = median_qi,
+                     shape = 24,
+            show.legend = FALSE)+
+  theme_void() +
+  #scales
+  scale_x_continuous(limits = c(-1,18.1),
+                     expand = c(0,0),
+                     breaks = c(0,2.5,5,7.5,10,12.5,15),
+                     labels = c(0,2.5,5,7.5,10,12.5,15))+
+  scale_color_manual(values = act_color)+
+  scale_fill_manual(values = act_color)+
+  scale_y_discrete(limits = factor(c(1,2,3,4)),
+                   breaks = c(1,2,3,4),
+                   labels = c("10-20", "21-40","41-60", "61+"),
+                   expand = c(0,0))+
+  labs(
+    title = "Distribution of Time Spent by Activities and Age Group by Those Who Participate in the Activities",
+    subtitle = "The ***American Time Use Survey*** provides a *“summary data”* containing more than 240,000 observsations with 456 variables across a<br>21-year period on how participants spent a day in their lives. This plot presents the distributions of hours spent on 6 main activities<br>featuring different age groups."
+  
+  )+
+  
+  #background aesthetics
+  theme(
+    plot.background = element_rect(fill = "seashell", 
+                                   color = NA),
+    panel.background = element_rect(fill = "seashell",
+                                    color = NA),
+    axis.text.x = element_markdown(margin = margin(rep(0.5, 4)),
+                                   size = 9),
+      #Title,Subtitle,  
+    plot.title = element_text(family = "Georgia", color = "tan4", 
+                            size = 14, face = "bold",
+                            margin = margin(t = 10, l = 20)),
+    plot.subtitle = element_markdown(color = "tan4", size = 11,
+                                   margin = margin(t = 5, b = 10, l = 20),
+                                   lineheight = 1.25),
+    
+      #legend
+    legend.position = c(0.92,0.9),
+    legend.background = element_rect(fill = "seashell",
+                                     color = NA),
+    legend.title = element_blank(),
+    legend.key.size = unit(0.8,"cm"),
+    legend.key.width = unit(1, "cm"),
+    legend.key.height = unit(0.5, "cm"),
+    legend.text = element_text(size = 9,
+                               margin = margin(t=0, b =0))
+  )+
+  guides(fill = guide_legend(override.aes = list(shape = 16, size = 3)))+
+  
+  #the cord and axis
+  coord_cartesian(clip ="off") +
+          #x-axis grid
+  geom_vline(
+    xintercept = 0:8 * 2.5 ,
+    color = "grey70",
+    size = .2,
+    linetype = "dashed"
+  ) +
+          #axis title
+              #y-axis
+    annotate(
+      "text", x = -0.25, y = 4.5,
+      label = "Age Group",
+      color = "grey20",
+      fontface = "bold.italic",
+      size = 3.5
+    )+        #x-axis
+    annotate(
+      "text", x = 8.75, y = 0.5,
+      label = "Hour Spent",
+      color = "grey20",
+      fontface = "bold.italic",
+      size = 3.5
+    )+
+  
+    
+  #manual facet
+  geom_segment(
+    data = data.frame(x = rep(0,5), xend = rep(18,5),
+                      y = c(0.55,1.5, 2.5, 3.5, 4.455), yend = c(0.55,1.5, 2.5, 3.5,4.455)),
+    aes(x = x, xend = xend,
+        y = y, yend = yend),
+    size = 0.5,
+    linetype = "solid",
+    color = "black") +
+  
+  geom_segment(
+    aes(x = 0, xend = 0,
+        y = 0.55, yend= 4.455),
+    color = "black",
+    size = 0.5,
+    linetype = "solid"
+  ) +
+  geom_segment(
+    aes(x = 18, xend = 18,
+        y = 0.55, yend= 4.455),
+    color = "black",
+    size = 0.5,
+    linetype = "solid"
+  ) + 
+  
+ annotate(
+    "text", 
+      x = rep(-0.5,4),
+      y = c(1,2,3,4),
+    label = c("10-20", "21-40","41-60", "61+"),
+    size = 3, 
+    color = "black") +
+  
+  #legend for triangle and circle
+    #circle/mean
+ annotate(
+    "text", x = mean((filter(filtered_data, activities == "Work" & TEAGE == 4 ))$Time_spent),
+            y = 4.5+0.1,
+    label = "Mean\nhrs",
+    family = "Avenir Next Condensed",
+    size = 2.5, 
+    color = "grey30",
+    fontface = "bold.italic", 
+    lineheight = .85
+  ) +
+  annotate(
+    "curve", x = mean((filter(filtered_data, activities == "Work" & TEAGE == 4 ))$Time_spent),
+             xend = mean((filter(filtered_data, activities == "Work" & TEAGE == 4 ))$Time_spent)-0.05,
+             y = 4.5+0.05, 
+             yend = 4.5-0.05,
+    curvature = .25,
+    color = "grey30",
+    size = .55,
+    arrow = arrow(length = unit(0.06, "inches"),
+                  type = "closed")
+  )+
+  #triangle/median
+ annotate(
+    "text", x = median((filter(filtered_data, activities == "Work" & TEAGE == 4 ))$Time_spent)+0.1,
+            y = 4.5+0.1,
+    label = "Median\nhrs",
+    family = "Avenir Next Condensed",
+    size = 2.5, 
+    color = "grey30",
+    fontface = "bold.italic", 
+    lineheight = .85
+  ) +
+  annotate(
+    "curve", x = median((filter(filtered_data, activities == "Work" & TEAGE == 4 ))$Time_spent),
+             xend = median((filter(filtered_data, activities == "Work" & TEAGE == 4 ))$Time_spent)+0.05,
+             y = 4.5+0.05, 
+             yend = 4.5-0.05,
+    curvature = -.25,
+    color = "grey30",
+    size = .55,
+    arrow = arrow(length = unit(0.06, "inches"),
+                  type = "closed")
+  )
+  })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+
+
+```
+
+```{r}
+#gg_stop_recording()
+```
