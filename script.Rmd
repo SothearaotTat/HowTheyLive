@@ -162,9 +162,7 @@ AUT_dist_hr <- AUT_dist_hr %>%
          TUYEAR = as.factor(TUYEAR)) %>%
   filter(Time_spent != 0) 
 
-save(file = "AUT_dist_hr.Rdata", AUT_dist_hr)
-
-
+#save(file = "AUT_dist_hr.Rdata", AUT_dist_hr)
 #dont be alarmd by the NA by coercion, it's because row 2 has the description of the data, so it's not a number
 ```
 
@@ -336,8 +334,7 @@ Avg_rec_byYear %<>% mutate(
   Activities = as.factor(Activities)
 )
 
-save(file = "Avg_rec_byYear.Rdata", Avg_rec_byYear)
-
+#save(file = "Avg_rec_byYear.Rdata", Avg_rec_byYear)
 #dont be alarmd by the NA by coercion, it's because row 2 has the description of the data, so it's not a number
 ```
 
@@ -507,7 +504,7 @@ subplot <- Avg_rec_byYear %>% ggplot(aes(x = Year, value = `Average Minutes`,
                       )
           
 #save to call in app
-ggsave(plot = subplot, filename = "D:/Study/RMIT/sem 2/visualisation/Assignment 3/subplot.png", width = 17, height = 11, dpi = 800)
+#ggsave(plot = subplot, filename = "D:/Study/RMIT/sem 2/visualisation/Assignment 3/subplot.png", width = 17, height = 11, dpi = 800)
 ```
 
 
