@@ -51,7 +51,7 @@ library(wesanderson)
 ```{r general preprocessing}
 
 #reading data
-AUT <- read.csv("https://github.com/SothearaotTat/HowTheyLive/raw/refs/heads/main/AUT%20data.csv.gz") #main data
+AUT <- read_csv("https://github.com/SothearaotTat/HowTheyLive/raw/refs/heads/main/AUT%20data.csv.gz") #main data
 variables <- read_csv("https://github.com/SothearaotTat/HowTheyLive/raw/refs/heads/main/acitivities_var.csv.gz")#codes of interest
 
 respondent_info <- grep("^T", colnames(AUT), value = TRUE)
