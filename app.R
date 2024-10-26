@@ -28,7 +28,7 @@ years <- seq(2003,2023,by=1)
   #import data
 load("AUT_dist_hr.Rdata")
 load("Avg_rec_byYear.Rdata")
-
+#=============the app itself=================
 #UI
 
 ui <- fluidPage(shinytheme("paper"), style = "margin:0;",
@@ -234,7 +234,7 @@ server <- function(input, output, session) {
                                          family = "Lato"),
         
         #legend
-        legend.position = c(0.92,0.88),
+        legend.position = c(0.92,0.85),
         legend.background = element_rect(fill = "seashell",
                                          color = NA),
         legend.title = element_blank(),
