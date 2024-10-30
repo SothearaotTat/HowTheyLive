@@ -43,7 +43,7 @@ library(wesanderson)
 ```{r}
 
 #set wd
-setwd("D:/Study/RMIT/sem 2/visualisation/Assignment 3")
+#setwd("D:/Study/RMIT/sem 2/visualisation/Assignment 3")
 
 #gg_record(dir = file.path("D:/Study/RMIT/sem 2/visualisation/Assignment 3", "recording"),
 #          device = "png", dpi = 300)
