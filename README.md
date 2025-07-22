@@ -1,4 +1,4 @@
-Preview of the app:
+Preview of the app: ![preview](https://github.com/SothearaotTat/HowTheyLive/blob/main/Howtheylive2.png)
 
 
 The link to the dashboard/app: https://d9rt8v-sothearaot-tat.shinyapps.io/DataVis_Asign3_SothearaotTat/
