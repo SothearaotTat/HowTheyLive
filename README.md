@@ -1,3 +1,8 @@
+Preview of the app:
+
+
+The link to the dashboard/app: https://d9rt8v-sothearaot-tat.shinyapps.io/DataVis_Asign3_SothearaotTat/
+
 1. atussum-0323.zip is the original file downloaded from https://www.bls.gov/tus/data/datafiles-0323.htm,
 specifically, https://www.bls.gov/tus/datafiles/atussum-0323.zip.
 
